@@ -1,0 +1,12 @@
+[submodule "gl3w"]
+	path = gl3w
+	url = git@github.com:skaslev/gl3w.git
+[submodule "libs/gl3w"]
+	path = libs/gl3w
+	url = git@github.com:skaslev/gl3w.git
+[submodule "libs/glfw"]
+	path = libs/glfw
+	url = git@github.com:glfw/glfw.git
+[submodule "libs/glm"]
+	path = libs/glm
+	url = git@github.com:g-truc/glm.git
