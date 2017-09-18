@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD 14)
 find_package(OpenGL)
 
 if (OPENGL_FOUND)
-	message("OpenGL Correctly Found")
+	message("OpenGL Correctly Found in ${OPENGL_INCLUDE_DIR}")
 	include_directories(${OPENGL_INCLUDE_DIR})
 else (OPENGL_FOUND)
 	message("OpenGL environment missing")

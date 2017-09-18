@@ -1,7 +1,15 @@
 #include "Application.h"
-#include <GL/gl3w.h>
 #include <stdio.h>
-#include <glm/glm.hpp>
+
+#define NUM_VERTICES 10
+
+/*
+ * CS 470: Computer Graphics
+ * Assignment 1
+ * Timothy Scott
+ *
+ * My additions have been commented below
+ */
 
 GLuint CompileShader(const char* src, GLint type)
 {
@@ -34,17 +42,23 @@ Application::Application()
     const char* OpenGLversion = (const char*)glGetString(GL_VERSION);
     const char* GLSLversion = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    printf("OpenGL %s GLSL: %s", OpenGLversion, GLSLversion);
+    printf("OpenGL %s GLSL: %s\n", OpenGLversion, GLSLversion);
 
 
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
 
+    /*
+     * Added second position attribute, mix uniform, and mixing between positions
+     */
     const char* vertex_shader_src = R"(
-        attribute vec2 a_position;
+        attribute vec2 pos_a;
+        attribute vec2 pos_b;
+
+        uniform float mix;
 
         void main()
         {
-            gl_Position = vec4(a_position, 0.0, 1.0);
+            gl_Position = vec4(mix * pos_a + (1.0 - mix) * pos_b, 0.0, 1.0);
         }
     )";
 
@@ -55,8 +69,8 @@ Application::Application()
         }
     )";
 
-    int vertex_shader_handle = CompileShader(vertex_shader_src, GL_VERTEX_SHADER);
-    int fragment_shader_handle = CompileShader(fragment_shader_src, GL_FRAGMENT_SHADER);
+    GLuint vertex_shader_handle = CompileShader(vertex_shader_src, GL_VERTEX_SHADER);
+    GLuint fragment_shader_handle = CompileShader(fragment_shader_src, GL_FRAGMENT_SHADER);
 
     m_program = glCreateProgram();
 
@@ -86,24 +100,42 @@ Application::Application()
     glDeleteShader(vertex_shader_handle);
     glDeleteShader(fragment_shader_handle);
 
-    m_attrib_pos = glGetAttribLocation(m_program, "a_position");
+    m_attrib_pos_a = glGetAttribLocation(m_program, "pos_a");
+    m_attrib_pos_b = glGetAttribLocation(m_program, "pos_b");
+    m_uniform_mix = glGetUniformLocation(m_program, "mix");
 
     glGenBuffers(1, &m_vertexBufferObject);
     glGenBuffers(1, &m_indexBufferObject);
 
-    glm::vec2 vertices[3];
-    vertices[0] = glm::vec2(-1.0, -1.0);
-    vertices[1] = glm::vec2(1.0, -1.0);
-    vertices[2] = glm::vec2(0.0, 1.0);
+    /*
+     * Added the following code to initialize positions
+     */
+    vertex vertices[NUM_VERTICES + 2];
+    // First vertex is the center of the circle, at (0, 0)
+    vertices[0] = {glm::vec2(0.0, 0.0), glm::vec2(0.0, 0.0)};
+    // Iterate until i = NUM_VERTICES because the last vertex should overlap
+    // the first one on the outside of the circle
+    for(int i = 0; i <= NUM_VERTICES; i++){
+        // Uniformly spread theta around the circle
+        float theta = ((float) i / NUM_VERTICES) * 2 * 3.14159f;
+        float mix = (i % 2) == 0 ? 1.0f : 0.25f;
+        vertices[i + 1] = {
+                glm::vec2(std::cos(theta), std::sin(theta)),
+                glm::vec2(mix * std::cos(theta), mix * std::sin(theta))
+        };
+    }
 
-    short indices[3] = {0, 1, 2};
+    short indices[NUM_VERTICES + 2] = {0};
+    for(short i = 0; i < NUM_VERTICES + 2; i++){
+        indices[i] = i;
+    }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, 3 * sizeof(glm::vec2), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, (NUM_VERTICES + 2) * sizeof(vertex), vertices, GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 3 * sizeof(short), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (NUM_VERTICES + 2) * sizeof(short), indices, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
@@ -128,12 +160,19 @@ void Application::Draw(float time)
     glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
 
-    glEnableVertexAttribArray(m_attrib_pos);
-    glVertexAttribPointer(m_attrib_pos, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), ToVoidPointer(0));
+    glEnableVertexAttribArray(m_attrib_pos_a);
+    glVertexAttribPointer(m_attrib_pos_a, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, pos_a)));
+    // Added position b attribute array
+    glEnableVertexAttribArray(m_attrib_pos_b);
+    glVertexAttribPointer(m_attrib_pos_b, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, pos_b)));
 
-    glDrawElements(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, 0);
+    // Uniform for determining what part of the cycle we are in
+    glUniform1f(m_uniform_mix, (std::sin(time) + 1) / 2.0f);
 
-    glDisableVertexAttribArray(m_attrib_pos);
+    glDrawElements(GL_TRIANGLE_FAN, NUM_VERTICES + 2, GL_UNSIGNED_SHORT, 0);
+
+    glDisableVertexAttribArray(m_attrib_pos_a);
+    glDisableVertexAttribArray(m_attrib_pos_b);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
