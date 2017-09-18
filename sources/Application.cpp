@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #define NUM_VERTICES 10
+#define MIX 0.25f
 
 /*
  * CS 470: Computer Graphics
@@ -35,6 +36,65 @@ GLuint CompileShader(const char* src, GLint type)
     return shader;
 }
 
+//https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
+glm::vec3 hsv2rgb(glm::vec3 in)
+{
+    float       hh, p, q, t, ff;
+    long        i;
+    glm::vec3   out;
+
+    if(in.y <= 0.0) {       // < is bogus, just shuts up warnings
+        out.r = in.z;
+        out.g = in.z;
+        out.b = in.z;
+        return out;
+    }
+    hh = in.x;
+    if(hh >= 360.0) hh = 0.0;
+    hh /= 60.0;
+    i = (long)hh;
+    ff = hh - i;
+    p = in.z * (1.0f - in.y);
+    q = in.z * (1.0f - (in.y * ff));
+    t = in.z * (1.0f - (in.y * (1.0f - ff)));
+
+    switch(i) {
+        case 0:
+            out.r = in.z;
+            out.g = t;
+            out.b = p;
+            break;
+        case 1:
+            out.r = q;
+            out.g = in.z;
+            out.b = p;
+            break;
+        case 2:
+            out.r = p;
+            out.g = in.z;
+            out.b = t;
+            break;
+
+        case 3:
+            out.r = p;
+            out.g = q;
+            out.b = in.z;
+            break;
+        case 4:
+            out.r = t;
+            out.g = p;
+            out.b = in.z;
+            break;
+        case 5:
+        default:
+            out.r = in.z;
+            out.g = p;
+            out.b = q;
+            break;
+    }
+    return out;
+}
+
 Application::Application()
 {
     gl3wInit();
@@ -53,19 +113,24 @@ Application::Application()
     const char* vertex_shader_src = R"(
         attribute vec2 pos_a;
         attribute vec2 pos_b;
+        attribute vec3 color;
+        varying vec3 rainbow;
 
         uniform float mix;
 
         void main()
         {
             gl_Position = vec4(mix * pos_a + (1.0 - mix) * pos_b, 0.0, 1.0);
+            rainbow = color;
         }
     )";
 
     const char* fragment_shader_src = R"(
+        varying vec3 rainbow;
+
         void main()
         {
-            gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);
+            gl_FragColor = vec4(rainbow, 1.0);
         }
     )";
 
@@ -102,6 +167,7 @@ Application::Application()
 
     m_attrib_pos_a = glGetAttribLocation(m_program, "pos_a");
     m_attrib_pos_b = glGetAttribLocation(m_program, "pos_b");
+    m_attrib_color = glGetAttribLocation(m_program, "color");
     m_uniform_mix = glGetUniformLocation(m_program, "mix");
 
     glGenBuffers(1, &m_vertexBufferObject);
@@ -112,16 +178,19 @@ Application::Application()
      */
     vertex vertices[NUM_VERTICES + 2];
     // First vertex is the center of the circle, at (0, 0)
-    vertices[0] = {glm::vec2(0.0, 0.0), glm::vec2(0.0, 0.0)};
+    vertices[0] = {glm::vec2(0.0, 0.0), glm::vec2(0.0, 0.0), glm::vec3(0.0, 0.0, 0.0)};
     // Iterate until i = NUM_VERTICES because the last vertex should overlap
     // the first one on the outside of the circle
     for(int i = 0; i <= NUM_VERTICES; i++){
         // Uniformly spread theta around the circle
         float theta = ((float) i / NUM_VERTICES) * 2 * 3.14159f;
-        float mix = (i % 2) == 0 ? 1.0f : 0.25f;
+        float mix = (i % 2) == 0 ? 1.0f : MIX;
+        glm::vec3 rgb = hsv2rgb(glm::vec3(theta * 180.0f / 3.14159f, 1.0f, 1.0f));
+        printf("Theta: %.4f, R: %.2f, G: %.2f, B: %.2f\n", theta, rgb.r, rgb.g, rgb.b);
         vertices[i + 1] = {
                 glm::vec2(std::cos(theta), std::sin(theta)),
-                glm::vec2(mix * std::cos(theta), mix * std::sin(theta))
+                glm::vec2(mix * std::cos(theta), mix * std::sin(theta)),
+                rgb
         };
     }
 
@@ -165,6 +234,8 @@ void Application::Draw(float time)
     // Added position b attribute array
     glEnableVertexAttribArray(m_attrib_pos_b);
     glVertexAttribPointer(m_attrib_pos_b, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, pos_b)));
+    glEnableVertexAttribArray(m_attrib_color);
+    glVertexAttribPointer(m_attrib_color, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, color)));
 
     // Uniform for determining what part of the cycle we are in
     glUniform1f(m_uniform_mix, (std::sin(time) + 1) / 2.0f);
@@ -173,6 +244,7 @@ void Application::Draw(float time)
 
     glDisableVertexAttribArray(m_attrib_pos_a);
     glDisableVertexAttribArray(m_attrib_pos_b);
+    glDisableVertexAttribArray(m_attrib_color);
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);

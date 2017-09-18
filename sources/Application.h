@@ -15,6 +15,7 @@ private:
     GLuint m_program;
     GLuint m_attrib_pos_a;
     GLuint m_attrib_pos_b;
+    GLuint m_attrib_color;
     GLuint m_uniform_mix;
 
     unsigned int m_vertexBufferObject;
@@ -23,5 +24,6 @@ private:
     struct vertex {
         glm::vec2 pos_a;
         glm::vec2 pos_b;
+        glm::vec3 color;
     } __attribute__((packed));
 };
