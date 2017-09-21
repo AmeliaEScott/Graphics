@@ -32,12 +32,6 @@ GLuint CompileShader(const char* src, GLint type)
     return shader;
 }
 
-struct Vertex
-{
-    glm::vec3 pos;
-    glm::vec3 normal;
-};
-
 Application::Application()
 {
     gl3wInit();
@@ -45,7 +39,7 @@ Application::Application()
     const char* OpenGLversion = (const char*)glGetString(GL_VERSION);
     const char* GLSLversion = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    printf("OpenGL %s GLSL: %s", OpenGLversion, GLSLversion);
+    printf("OpenGL %s GLSL: %s\n", OpenGLversion, GLSLversion);
 
 
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -131,84 +125,6 @@ Application::Application()
     m_teddy.Load("../teddy.obj");
 }
 
-void Object::Load(std::string path)
-{
-    glGenBuffers(1, &m_vertexBufferObject);
-    glGenBuffers(1, &m_indexBufferObject);
-
-    std::vector<Vertex> vertices;
-    std::vector<int> indices;
-    std::ifstream file(path);
-    std::string str;
-    Vertex v;
-    v.pos = glm::vec3();
-    while (std::getline(file, str))
-    {
-        if (strncmp(str.c_str(), "v ", 2) == 0)
-        {
-            sscanf(str.c_str(), "v %f %f %f", &v.pos.x, &v.pos.y, &v.pos.z);
-            v.normal = glm::vec3(0);
-            vertices.push_back(v);
-        }
-        else if (strncmp(str.c_str(), "f ", 2) == 0)
-        {
-            int tmp;
-            int a, b, c, d;
-            sscanf(str.c_str(), "f %d %d %d", &a, &b, &c);
-            indices.push_back(a - 1);
-            indices.push_back(b - 1);
-            indices.push_back(c - 1);
-        }
-    }
-    m_indexSize = indices.size();
-
-    for (int f = 0; f < m_indexSize / 3; ++f)
-    {
-        int i = indices[3 * f + 0];
-        int j = indices[3 * f + 1];
-        int k = indices[3 * f + 2];
-        glm::vec3 p1 = vertices[i].pos;
-        glm::vec3 p2 = vertices[j].pos;
-        glm::vec3 p3 = vertices[k].pos;
-        glm::vec3 a = p1 - p3;
-        glm::vec3 b = p2 - p3;
-        glm::vec3 c = glm::cross(a, b);
-        vertices[i].normal += c;
-        vertices[j].normal += c;
-        vertices[k].normal += c;
-    }
-
-    for (int i = 0; i < vertices.size(); ++i)
-    {
-        vertices[i].normal = glm::normalize(vertices[i].normal);
-    }
-
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(int), indices.data(), GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-}
-
-void Object::Draw()
-{
-    glDrawElements(GL_TRIANGLES, m_indexSize, GL_UNSIGNED_INT, 0);
-}
-
-void Object::Bind()
-{
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
-}
-
-void Object::UnBind()
-{
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-}
-
 Application::~Application()
 {
     glDeleteProgram(m_program);
@@ -230,8 +146,9 @@ void Application::Draw(float time)
 
     glUseProgram(m_program);
 
-    glm::mat4 transform = glm::mat4(1.0);
-    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
+    glm::mat4 transform = glm::rotate(glm::mat4(1.0), time, glm::vec3(0.0, 1.0, 0.0));
+    glm::mat4 cowscale = glm::scale(transform, glm::vec3(3.0, 3.0, 3.0));
+    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &cowscale[0][0]);
 
     glm::mat4 projection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, -200.0f, 200.0f);
     glm::mat4 view = glm::lookAt(glm::vec3(1.0), glm::vec3(0.0), glm::vec3(0.0, 1.0, 0.0));
@@ -247,14 +164,19 @@ void Application::Draw(float time)
     glUniform3f(m_uniform_color, 0.0, 1.0, 0.0);
     glUniform1f(m_uniform_ambient, 0.2);
 
-    transform = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -40.0));
+    //transform = glm::mat4(1.0);
+    //transform = glm::rotate(transform, time, glm::vec3(0.0, 1.0, 0.0));
+    transform = glm::translate(transform, glm::vec3(0.0, 0.0, -40.0));
+    transform = glm::rotate(transform, time, glm::vec3(0.0, 1.0, 0.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
 
     DrawMesh(m_teapot);
 
     glUniform3f(m_uniform_color, 0.8, 0.5, 0.2);
 
-    transform = glm::translate(glm::mat4(1.0), glm::vec3(40.0, 0.0, 0.0)) * glm::scale(glm::mat4(1.0), glm::vec3(0.1f));
+    transform = glm::rotate(transform, time * 3, glm::vec3(0.0, 1.0, 0.0));
+    transform = glm::translate(transform, glm::vec3(10.0, 0.0, 0.0)) * glm::scale(glm::mat4(1.0), glm::vec3(0.1f));
+    transform = glm::rotate(transform, -3.14159f / 2.0f, glm::vec3(0.0, 1.0, 0.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
 
     DrawMesh(m_teddy);

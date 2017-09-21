@@ -1,19 +1,6 @@
 #pragma once
 #include <string>
-
-class Object
-{
-public:
-    void Load(std::string path);
-
-    void Bind();
-    void Draw();
-    void UnBind();
-private:
-    unsigned int m_vertexBufferObject;
-    unsigned int m_indexBufferObject;
-    unsigned int m_indexSize;
-};
+#include "Object.h"
 
 class Application
 {
