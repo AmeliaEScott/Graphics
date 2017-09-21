@@ -1,16 +1,12 @@
 #include "Application.h"
+#include <GL/gl3w.h>
 #include <stdio.h>
-
-#define NUM_VERTICES 10
-#define MIX 0.25f
-
-/*
- * CS 470: Computer Graphics
- * Assignment 1
- * Timothy Scott
- *
- * My additions have been commented below
- */
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <map>
 
 GLuint CompileShader(const char* src, GLint type)
 {
@@ -36,64 +32,11 @@ GLuint CompileShader(const char* src, GLint type)
     return shader;
 }
 
-//https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
-glm::vec3 hsv2rgb(glm::vec3 in)
+struct Vertex
 {
-    float       hh, p, q, t, ff;
-    long        i;
-    glm::vec3   out;
-
-    if(in.y <= 0.0) {       // < is bogus, just shuts up warnings
-        out.r = in.z;
-        out.g = in.z;
-        out.b = in.z;
-        return out;
-    }
-    hh = in.x;
-    if(hh >= 360.0) hh = 0.0;
-    hh /= 60.0;
-    i = (long)hh;
-    ff = hh - i;
-    p = in.z * (1.0f - in.y);
-    q = in.z * (1.0f - (in.y * ff));
-    t = in.z * (1.0f - (in.y * (1.0f - ff)));
-
-    switch(i) {
-        case 0:
-            out.r = in.z;
-            out.g = t;
-            out.b = p;
-            break;
-        case 1:
-            out.r = q;
-            out.g = in.z;
-            out.b = p;
-            break;
-        case 2:
-            out.r = p;
-            out.g = in.z;
-            out.b = t;
-            break;
-
-        case 3:
-            out.r = p;
-            out.g = q;
-            out.b = in.z;
-            break;
-        case 4:
-            out.r = t;
-            out.g = p;
-            out.b = in.z;
-            break;
-        case 5:
-        default:
-            out.r = in.z;
-            out.g = p;
-            out.b = q;
-            break;
-    }
-    return out;
-}
+    glm::vec3 pos;
+    glm::vec3 normal;
+};
 
 Application::Application()
 {
@@ -102,40 +45,48 @@ Application::Application()
     const char* OpenGLversion = (const char*)glGetString(GL_VERSION);
     const char* GLSLversion = (const char*)glGetString(GL_SHADING_LANGUAGE_VERSION);
 
-    printf("OpenGL %s GLSL: %s\n", OpenGLversion, GLSLversion);
+    printf("OpenGL %s GLSL: %s", OpenGLversion, GLSLversion);
 
 
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearDepth(1.0f);
 
-    /*
-     * Added second position attribute, mix uniform, and mixing between positions
-     */
     const char* vertex_shader_src = R"(
-        attribute vec2 pos_a;
-        attribute vec2 pos_b;
-        attribute vec3 color;
-        varying vec3 rainbow;
+        attribute vec3 a_position;
+        attribute vec3 a_normal;
 
-        uniform float mix;
+        uniform mat4 u_transform;
+        uniform mat4 u_viewProjection;
+
+        varying vec3 v_normal;
+        varying vec4 v_pos;
 
         void main()
         {
-            gl_Position = vec4(mix * pos_a + (1.0 - mix) * pos_b, 0.0, 1.0);
-            rainbow = color;
+            v_normal = (u_transform * vec4(a_normal, 0.0)).xyz;
+            v_pos = u_transform * vec4(a_position, 1.0);
+            gl_Position = u_viewProjection * v_pos;
         }
     )";
 
     const char* fragment_shader_src = R"(
-        varying vec3 rainbow;
+        uniform vec3 u_light_pos;
+        uniform vec3 u_color;
+        uniform float u_ambient;
+
+        varying vec3 v_normal;
+        varying vec4 v_pos;
 
         void main()
         {
-            gl_FragColor = vec4(rainbow, 1.0);
+            float diffuse = dot(normalize(v_normal), normalize(-v_pos.xyz));
+            diffuse = max(diffuse, 0.0);
+            gl_FragColor = vec4(u_color * (diffuse + u_ambient), 1.0);
         }
     )";
 
-    GLuint vertex_shader_handle = CompileShader(vertex_shader_src, GL_VERTEX_SHADER);
-    GLuint fragment_shader_handle = CompileShader(fragment_shader_src, GL_FRAGMENT_SHADER);
+    int vertex_shader_handle = CompileShader(vertex_shader_src, GL_VERTEX_SHADER);
+    int fragment_shader_handle = CompileShader(fragment_shader_src, GL_FRAGMENT_SHADER);
 
     m_program = glCreateProgram();
 
@@ -165,49 +116,98 @@ Application::Application()
     glDeleteShader(vertex_shader_handle);
     glDeleteShader(fragment_shader_handle);
 
-    m_attrib_pos_a = glGetAttribLocation(m_program, "pos_a");
-    m_attrib_pos_b = glGetAttribLocation(m_program, "pos_b");
-    m_attrib_color = glGetAttribLocation(m_program, "color");
-    m_uniform_mix = glGetUniformLocation(m_program, "mix");
+    m_attrib_pos = glGetAttribLocation(m_program, "a_position");
+    m_attrib_normal = glGetAttribLocation(m_program, "a_normal");
 
+    m_uniform_transform = glGetUniformLocation(m_program, "u_transform");
+    m_uniform_viewProjection = glGetUniformLocation(m_program, "u_viewProjection");
+
+    m_uniform_color = glGetUniformLocation(m_program, "u_color");
+    m_uniform_ambient = glGetUniformLocation(m_program, "u_ambient");
+    m_uniform_light_pos = glGetUniformLocation(m_program, "u_light_pos");
+
+    m_cow.Load("../cow.obj");
+    m_teapot.Load("../teapot.obj");
+    m_teddy.Load("../teddy.obj");
+}
+
+void Object::Load(std::string path)
+{
     glGenBuffers(1, &m_vertexBufferObject);
     glGenBuffers(1, &m_indexBufferObject);
 
-    /*
-     * Added the following code to initialize positions
-     */
-    vertex vertices[NUM_VERTICES + 2];
-    // First vertex is the center of the circle, at (0, 0)
-    vertices[0] = {glm::vec2(0.0, 0.0), glm::vec2(0.0, 0.0), glm::vec3(0.0, 0.0, 0.0)};
-    // Iterate until i = NUM_VERTICES because the last vertex should overlap
-    // the first one on the outside of the circle
-    for(int i = 0; i <= NUM_VERTICES; i++){
-        // Uniformly spread theta around the circle
-        float theta = ((float) i / NUM_VERTICES) * 2 * 3.14159f;
-        float mix = (i % 2) == 0 ? 1.0f : MIX;
-        glm::vec3 rgb = hsv2rgb(glm::vec3(theta * 180.0f / 3.14159f, 1.0f, 1.0f));
-        printf("Theta: %.4f, R: %.2f, G: %.2f, B: %.2f\n", theta, rgb.r, rgb.g, rgb.b);
-        vertices[i + 1] = {
-                glm::vec2(std::cos(theta), std::sin(theta)),
-                glm::vec2(mix * std::cos(theta), mix * std::sin(theta)),
-                rgb
-        };
+    std::vector<Vertex> vertices;
+    std::vector<int> indices;
+    std::ifstream file(path);
+    std::string str;
+    Vertex v;
+    v.pos = glm::vec3();
+    while (std::getline(file, str))
+    {
+        if (strncmp(str.c_str(), "v ", 2) == 0)
+        {
+            sscanf(str.c_str(), "v %f %f %f", &v.pos.x, &v.pos.y, &v.pos.z);
+            v.normal = glm::vec3(0);
+            vertices.push_back(v);
+        }
+        else if (strncmp(str.c_str(), "f ", 2) == 0)
+        {
+            int tmp;
+            int a, b, c, d;
+            sscanf(str.c_str(), "f %d %d %d", &a, &b, &c);
+            indices.push_back(a - 1);
+            indices.push_back(b - 1);
+            indices.push_back(c - 1);
+        }
+    }
+    m_indexSize = indices.size();
+
+    for (int f = 0; f < m_indexSize / 3; ++f)
+    {
+        int i = indices[3 * f + 0];
+        int j = indices[3 * f + 1];
+        int k = indices[3 * f + 2];
+        glm::vec3 p1 = vertices[i].pos;
+        glm::vec3 p2 = vertices[j].pos;
+        glm::vec3 p3 = vertices[k].pos;
+        glm::vec3 a = p1 - p3;
+        glm::vec3 b = p2 - p3;
+        glm::vec3 c = glm::cross(a, b);
+        vertices[i].normal += c;
+        vertices[j].normal += c;
+        vertices[k].normal += c;
     }
 
-    short indices[NUM_VERTICES + 2] = {0};
-    for(short i = 0; i < NUM_VERTICES + 2; i++){
-        indices[i] = i;
+    for (int i = 0; i < vertices.size(); ++i)
+    {
+        vertices[i].normal = glm::normalize(vertices[i].normal);
     }
 
     glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
-    glBufferData(GL_ARRAY_BUFFER, (NUM_VERTICES + 2) * sizeof(vertex), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(Vertex), vertices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, (NUM_VERTICES + 2) * sizeof(short), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(int), indices.data(), GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
+void Object::Draw()
+{
+    glDrawElements(GL_TRIANGLES, m_indexSize, GL_UNSIGNED_INT, 0);
+}
+
+void Object::Bind()
+{
+    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
+}
+
+void Object::UnBind()
+{
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
 
 Application::~Application()
 {
@@ -222,30 +222,58 @@ inline void* ToVoidPointer(int offset)
 
 void Application::Draw(float time)
 {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_CULL_FACE);
+
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LESS);
 
     glUseProgram(m_program);
 
-    glBindBuffer(GL_ARRAY_BUFFER, m_vertexBufferObject);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_indexBufferObject);
+    glm::mat4 transform = glm::mat4(1.0);
+    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
 
-    glEnableVertexAttribArray(m_attrib_pos_a);
-    glVertexAttribPointer(m_attrib_pos_a, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, pos_a)));
-    // Added position b attribute array
-    glEnableVertexAttribArray(m_attrib_pos_b);
-    glVertexAttribPointer(m_attrib_pos_b, 2, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, pos_b)));
-    glEnableVertexAttribArray(m_attrib_color);
-    glVertexAttribPointer(m_attrib_color, 3, GL_FLOAT, GL_FALSE, sizeof(vertex), ToVoidPointer(offsetof(vertex, color)));
+    glm::mat4 projection = glm::ortho(-50.0f, 50.0f, -50.0f, 50.0f, -200.0f, 200.0f);
+    glm::mat4 view = glm::lookAt(glm::vec3(1.0), glm::vec3(0.0), glm::vec3(0.0, 1.0, 0.0));
+    glm::mat4 viewProjection = projection * view;
 
-    // Uniform for determining what part of the cycle we are in
-    glUniform1f(m_uniform_mix, (std::sin(time) + 1) / 2.0f);
+    glUniformMatrix4fv(m_uniform_viewProjection, 1, GL_FALSE, &viewProjection[0][0]);
 
-    glDrawElements(GL_TRIANGLE_FAN, NUM_VERTICES + 2, GL_UNSIGNED_SHORT, 0);
+    glUniform3f(m_uniform_color, 1.0, 1.0, 0.0);
+    glUniform1f(m_uniform_ambient, 1.0);
 
-    glDisableVertexAttribArray(m_attrib_pos_a);
-    glDisableVertexAttribArray(m_attrib_pos_b);
-    glDisableVertexAttribArray(m_attrib_color);
+    DrawMesh(m_cow);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glUniform3f(m_uniform_color, 0.0, 1.0, 0.0);
+    glUniform1f(m_uniform_ambient, 0.2);
+
+    transform = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.0, -40.0));
+    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
+
+    DrawMesh(m_teapot);
+
+    glUniform3f(m_uniform_color, 0.8, 0.5, 0.2);
+
+    transform = glm::translate(glm::mat4(1.0), glm::vec3(40.0, 0.0, 0.0)) * glm::scale(glm::mat4(1.0), glm::vec3(0.1f));
+    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
+
+    DrawMesh(m_teddy);
+}
+
+void Application::DrawMesh(Object& object)
+{
+    object.Bind();
+
+    glEnableVertexAttribArray(m_attrib_pos);
+    glVertexAttribPointer(m_attrib_pos, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(0));
+
+    glEnableVertexAttribArray(m_attrib_normal);
+    glVertexAttribPointer(m_attrib_normal, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(sizeof(glm::vec3)));
+
+    object.Draw();
+
+    glDisableVertexAttribArray(m_attrib_pos);
+    glDisableVertexAttribArray(m_attrib_normal);
+
+    object.UnBind();
 }

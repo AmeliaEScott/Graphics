@@ -11,11 +11,8 @@ int main()
     /* Initialize the library */
     glfwInit();
 
-    glfwWindowHint(GLFW_DEPTH_BITS, 24);
-    glfwWindowHint(GLFW_RED_BITS, 8);
-
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(1024, 1024, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(640, 640, "Hello World", NULL, NULL);
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);

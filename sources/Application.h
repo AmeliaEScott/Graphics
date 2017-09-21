@@ -1,7 +1,19 @@
 #pragma once
+#include <string>
 
-#include <GL/gl3w.h>
-#include <glm/glm.hpp>
+class Object
+{
+public:
+    void Load(std::string path);
+
+    void Bind();
+    void Draw();
+    void UnBind();
+private:
+    unsigned int m_vertexBufferObject;
+    unsigned int m_indexBufferObject;
+    unsigned int m_indexSize;
+};
 
 class Application
 {
@@ -12,18 +24,18 @@ public:
     void Draw(float time);
 
 private:
-    GLuint m_program;
-    GLuint m_attrib_pos_a;
-    GLuint m_attrib_pos_b;
-    GLuint m_attrib_color;
-    GLuint m_uniform_mix;
+    void DrawMesh(Object& object);
 
-    unsigned int m_vertexBufferObject;
-    unsigned int m_indexBufferObject;
+    Object m_cow;
+    Object m_teapot;
+    Object m_teddy;
 
-    struct vertex {
-        glm::vec2 pos_a;
-        glm::vec2 pos_b;
-        glm::vec3 color;
-    } __attribute__((packed));
+    unsigned int m_program;
+    unsigned int m_attrib_pos;
+    unsigned int m_attrib_normal;
+    unsigned int m_uniform_transform;
+    unsigned int m_uniform_viewProjection;
+    unsigned int m_uniform_color;
+    unsigned int m_uniform_ambient;
+    unsigned int m_uniform_light_pos;
 };
