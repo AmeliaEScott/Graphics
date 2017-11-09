@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #define NUM_VERTICES 20
-#define MIX 0.0f
+#define MIX 0.1f
 #define ROTATION_SPEED 0.05f
 
 /*
@@ -245,7 +245,7 @@ void Application::Draw(float time)
     glUniform1f(m_uniform_mix, (std::sin(time) + 1) / 2.0f);
     glUniform1f(m_uniform_rotation, ROTATION_SPEED * time);
 
-    glDrawElements(GL_TRIANGLE_FAN, NUM_VERTICES + 2, GL_UNSIGNED_SHORT, 0);
+    glDrawElements(GL_TRIANGLE_FAN, NUM_VERTICES + 2, GL_UNSIGNED_SHORT, ToVoidPointer(0));
 
     glDisableVertexAttribArray(m_attrib_pos_a);
     glDisableVertexAttribArray(m_attrib_pos_b);
