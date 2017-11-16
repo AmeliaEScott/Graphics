@@ -68,52 +68,30 @@ Application::Application()
         uniform mat4 u_transform;
         uniform mat4 u_viewProjection;
 
-        varying vec4 v_normal;
+        varying vec3 v_normal;
         varying vec4 v_pos;
 
         void main()
         {
-            v_normal = vec4(normalize((u_transform * vec4(a_normal, 0.0)).xyz), 1.0);
+            v_normal = (u_transform * vec4(a_normal, 0.0)).xyz;
             v_pos = u_transform * vec4(a_position, 1.0);
             gl_Position = u_viewProjection * v_pos;
         }
     )";
 
     const char* fragment_shader_src = R"(
-        uniform vec4 u_camera_pos;
+        uniform vec3 u_light_pos;
+        uniform vec3 u_color;
+        uniform float u_ambient;
 
-        uniform vec4 u_material_ambient;
-        uniform vec4 u_material_diffuse;
-        uniform vec4 u_material_specular;
-        uniform float u_material_shininess;
-
-        uniform vec4 u_light_1_pos;
-        uniform vec4 u_light_1_ambient;
-        uniform vec4 u_light_1_diffuse;
-        uniform vec4 u_light_1_specular;
-
-        uniform vec4 u_light_2_pos;
-        uniform vec4 u_light_2_ambient;
-        uniform vec4 u_light_2_diffuse;
-        uniform vec4 u_light_2_specular;
-
-        varying vec4 v_normal;
+        varying vec3 v_normal;
         varying vec4 v_pos;
 
         void main()
         {
-            vec3 V = normalize(u_camera_pos.xyz - v_pos.xyz);
-            vec3 L1 = normalize(u_light_1_pos.xyz - v_pos.xyz);
-            vec3 L2 = normalize(u_light_2_pos.xyz - v_pos.xyz);
-            vec3 R1 = (2.0 * dot(L1, v_normal.xyz) * v_normal.xyz) - L1;
-            vec3 R2 = (2.0 * dot(L2, v_normal.xyz) * v_normal.xyz) - L2;
-
-            vec3 ambient = u_material_ambient.xyz * (u_light_1_ambient.xyz + u_light_2_ambient.xyz);
-            vec3 light1diffuse = u_material_diffuse.xyz * max(dot(L1, v_normal.xyz), 0.0) * u_light_1_diffuse.xyz;
-            vec3 light1specular = u_light_1_specular.xyz * u_material_specular.xyz * pow(max(dot(R1, V), 0.0), u_material_shininess);
-            vec3 light2diffuse = u_material_diffuse.xyz * max(dot(L2, v_normal.xyz), 0.0) * u_light_2_diffuse.xyz;
-            vec3 light2specular = u_light_2_specular.xyz * u_material_specular.xyz * pow(max(dot(R2, V), 0.0), u_material_shininess);
-            gl_FragColor = vec4(ambient + light1diffuse + light1specular + light2diffuse + light2specular, 1.0);
+            float diffuse = dot(normalize(v_normal), normalize(-v_pos.xyz));
+            diffuse = max(diffuse, 0.0);
+            gl_FragColor = vec4(u_color * (diffuse + u_ambient), 1.0);
         }
     )";
 
@@ -154,25 +132,12 @@ Application::Application()
     m_uniform_transform = glGetUniformLocation(m_program, "u_transform");
     m_uniform_viewProjection = glGetUniformLocation(m_program, "u_viewProjection");
 
-    m_uniform_material_ambient = glGetUniformLocation(m_program, "u_material_ambient");
-    m_uniform_material_diffuse = glGetUniformLocation(m_program, "u_material_diffuse");
-    m_uniform_material_specular = glGetUniformLocation(m_program, "u_material_specular");
-    m_uniform_material_shininess = glGetUniformLocation(m_program, "u_material_shininess");
-
-    m_uniform_light_1_pos = glGetUniformLocation(m_program, "u_light_1_pos");
-    m_uniform_light_1_ambient  = glGetUniformLocation(m_program, "u_light_1_ambient");
-    m_uniform_light_1_diffuse = glGetUniformLocation(m_program, "u_light_1_diffuse");
-    m_uniform_light_1_specular = glGetUniformLocation(m_program, "u_light_1_specular");
-
-    m_uniform_light_2_pos = glGetUniformLocation(m_program, "u_light_2_pos");
-    m_uniform_light_2_ambient = glGetUniformLocation(m_program, "u_light_2_ambient");
-    m_uniform_light_2_diffuse = glGetUniformLocation(m_program, "u_light_2_diffuse");
-    m_uniform_light_2_specular = glGetUniformLocation(m_program, "u_light_2_specular");
-
-    m_uniform_camera_pos = glGetUniformLocation(m_program, "u_camera_pos");
+    m_uniform_color = glGetUniformLocation(m_program, "u_color");
+    m_uniform_ambient = glGetUniformLocation(m_program, "u_ambient");
+    m_uniform_light_pos = glGetUniformLocation(m_program, "u_light_pos");
 
     m_cow.Load("../cow.obj");
-    m_teapot.Load("../sphere.obj");
+    m_teapot.Load("../teapot.obj");
     m_teddy.Load("../teddy.obj");
 
     m_a_pressed = false;
@@ -182,13 +147,6 @@ Application::Application()
     m_q_pressed = false;
     m_e_pressed = false;
     m_mouse_pressed = false;
-
-    m_left_pressed = false;
-    m_right_pressed = false;
-    m_up_pressed = false;
-    m_down_pressed = false;
-    m_period_pressed = false;
-    m_comma_pressed = false;
 
     m_camera_pos = glm::vec3(0.0f, 0.0f, 40.0f);
     m_camera_yaw = 0.0f;
@@ -201,10 +159,6 @@ Application::Application()
     m_current_mouse_pos = glm::vec3(0.0, 0.0, 0.0);
 
     m_orbit_mode = 1;
-
-    m_light_1_radius = 0.0f;
-    m_light_1_angle = 0.0f;
-    m_light_1_height = 60.0f;
 }
 
 Application::~Application()
@@ -267,10 +221,9 @@ glm::mat4 viewMatrix( glm::vec3 eye, float pitch, float yaw )
  * @param altitude Angle above the XZ Plane
  * @return View matrix as a glm::mat4
  */
-glm::mat4 Application::viewMatrixOrbit(float radius, float yaw, float altitude){
+glm::mat4 viewMatrixOrbit(float radius, float yaw, float altitude){
     float xzRadius = radius * cosf(altitude);
     glm::vec3 eye = glm::vec3(xzRadius * sinf(yaw), radius * sinf(altitude), xzRadius * cosf(yaw));
-    m_camera_pos = eye;
     return viewMatrix(eye, -altitude, yaw);
 }
 
@@ -289,20 +242,6 @@ void Application::KeyEvent(int keycode, int event){
         m_d_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
     }else if((keycode == 340 || keycode == 344) && event == GLFW_PRESS){  // Left shift and right shift keys
         m_orbit_mode = !m_orbit_mode;
-    }else if(keycode == 262){  // Right arrow
-        m_right_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else if(keycode == 263){  // Left arrow
-        m_left_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else if(keycode == 264){  // Down arrow
-        m_down_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else if(keycode == 265){  // Up arrow
-        m_up_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else if(keycode == '.'){
-        m_period_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else if(keycode == ','){
-        m_comma_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else{
-        printf("Key event: %d\n", keycode);
     }
 }
 
@@ -430,63 +369,25 @@ void Application::Draw(float time, float deltatime)
      * but with the movement removed (so it is easier to tell how the camera is moving).
      */
 
-    float lightSpeed = 20.0f;  // NOTE: reduced from 3.0x10^8
-    float lightAngleSpeed = 1.5f;
-
-    if(m_up_pressed){
-        m_light_1_height += lightSpeed * deltatime;
-    }
-    if(m_down_pressed){
-        m_light_1_height -= lightSpeed * deltatime;
-    }
-    if(m_left_pressed){
-        m_light_1_angle += lightAngleSpeed * deltatime;
-    }
-    if(m_right_pressed){
-        m_light_1_angle -= lightAngleSpeed * deltatime;
-    }
-    if(m_comma_pressed){
-        m_light_1_radius -= lightSpeed * deltatime;
-    }
-    if(m_period_pressed){
-        m_light_1_radius += lightSpeed * deltatime;
-    }
-
-    glm::vec3 light1pos = glm::vec3(m_light_1_radius * cosf(m_light_1_angle), m_light_1_height, m_light_1_radius * sinf(m_light_1_angle));
-
-    //printf("Camera pos: %.3f, %.3f, %.3f\n", m_camera_pos.x, m_camera_pos.y, m_camera_pos.z);
-    glUniform4f(m_uniform_camera_pos, m_camera_pos.x, m_camera_pos.y, m_camera_pos.z, 1.0);
-
-    glUniform4f(m_uniform_material_ambient, 0.6, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_material_diffuse, 0.9, 0.1, 0.1, 1.0);
-    glUniform4f(m_uniform_material_specular, 0.8, 0.8, 0.8, 1.0);
-    glUniform1f(m_uniform_material_shininess, 80.0);
-
-    glUniform4f(m_uniform_light_1_pos, light1pos.x, light1pos.y, light1pos.z, 1.0);
-    glUniform4f(m_uniform_light_1_ambient, 0.2, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_light_1_diffuse, 0.6, 0.6, 0.6, 1.0);
-    glUniform4f(m_uniform_light_1_specular, 1.0, 1.0, 1.0, 1.0);
-
-    glUniform4f(m_uniform_light_2_pos, m_camera_pos.x, m_camera_pos.y, m_camera_pos.z, 1.0);
-    glUniform4f(m_uniform_light_2_ambient, 0.2, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_light_2_diffuse, 0.6, 0.6, 0.6, 1.0);
-    glUniform4f(m_uniform_light_2_specular, 1.0, 1.0, 1.0, 1.0);
-
-
-    //glm::mat4 transform = glm::rotate(glm::mat4(1.0), 0.0f, glm::vec3(0.0, 1.0, 0.0));
-    glm::mat4 transform = glm::mat4(1.0f);
-    glm::mat4 cowscale = glm::scale(transform, glm::vec3(6.0, 6.0, 6.0));
+    glm::mat4 transform = glm::rotate(glm::mat4(1.0), 0.0f, glm::vec3(0.0, 1.0, 0.0));
+    glm::mat4 cowscale = glm::scale(transform, glm::vec3(3.0, 3.0, 3.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &cowscale[0][0]);
+
+    glUniform3f(m_uniform_color, 1.0, 1.0, 0.0);
+    glUniform1f(m_uniform_ambient, 1.0);
 
     DrawMesh(m_cow);
 
+    glUniform3f(m_uniform_color, 0.0, 1.0, 0.0);
+    glUniform1f(m_uniform_ambient, 0.2);
 
     transform = glm::translate(transform, glm::vec3(0.0, 0.0, -40.0));
     transform = glm::rotate(transform, 0.0f, glm::vec3(0.0, 1.0, 0.0));
-    transform = glm::scale(transform, glm::vec3(6.0, 6.0, 6.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
 
     DrawMesh(m_teapot);
+
+    glUniform3f(m_uniform_color, 0.8, 0.5, 0.2);
 
     transform = glm::rotate(transform, 0.0f, glm::vec3(0.0, 1.0, 0.0));
     transform = glm::translate(transform, glm::vec3(10.0, 0.0, 0.0)) * glm::scale(glm::mat4(1.0), glm::vec3(0.1f));
