@@ -42,9 +42,9 @@ add_subdirectory (libs/gl3w)
 # Targets
 ##############################################################
 file(GLOB_RECURSE SOURCES sources/*.cpp src/*.h)
-add_executable(Triangle ${SOURCES})
+add_executable(Lighting ${SOURCES} sources/Bezier.cpp sources/Bezier.h)
 
 ##############################################################
 # Linkage
 ##############################################################
-target_link_libraries(Triangle gl3w glfw ${OPENGL_LIBRARIES})
+target_link_libraries(Lighting gl3w glfw ${OPENGL_LIBRARIES})

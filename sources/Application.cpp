@@ -64,17 +64,20 @@ Application::Application()
     const char* vertex_shader_src = R"(
         attribute vec3 a_position;
         attribute vec3 a_normal;
+        attribute vec3 a_uv;
 
         uniform mat4 u_transform;
         uniform mat4 u_viewProjection;
 
         varying vec4 v_normal;
         varying vec4 v_pos;
+        varying vec3 v_uv;
 
         void main()
         {
             v_normal = vec4(normalize((u_transform * vec4(a_normal, 0.0)).xyz), 1.0);
             v_pos = u_transform * vec4(a_position, 1.0);
+            v_uv = a_uv;
             gl_Position = u_viewProjection * v_pos;
         }
     )";
@@ -99,6 +102,7 @@ Application::Application()
 
         varying vec4 v_normal;
         varying vec4 v_pos;
+        varying vec3 v_uv;
 
         void main()
         {
@@ -114,6 +118,8 @@ Application::Application()
             vec3 light2diffuse = u_material_diffuse.xyz * max(dot(L2, v_normal.xyz), 0.0) * u_light_2_diffuse.xyz;
             vec3 light2specular = u_light_2_specular.xyz * u_material_specular.xyz * pow(max(dot(R2, V), 0.0), u_material_shininess);
             gl_FragColor = vec4(ambient + light1diffuse + light1specular + light2diffuse + light2specular, 1.0);
+            //gl_FragColor = v_normal;
+            //gl_FragColor = vec4(v_uv.x / 20.0, v_uv.y / 20.0, 0.0, 1.0);
         }
     )";
 
@@ -150,6 +156,7 @@ Application::Application()
 
     m_attrib_pos = glGetAttribLocation(m_program, "a_position");
     m_attrib_normal = glGetAttribLocation(m_program, "a_normal");
+    m_attrib_uv = glGetAttribLocation(m_program, "a_uv");
 
     m_uniform_transform = glGetUniformLocation(m_program, "u_transform");
     m_uniform_viewProjection = glGetUniformLocation(m_program, "u_viewProjection");
@@ -174,6 +181,9 @@ Application::Application()
     m_cow.Load("../cow.obj");
     m_teapot.Load("../sphere.obj");
     m_teddy.Load("../teddy.obj");
+    m_bezier.Load(20, 20, [](int x, int y) -> glm::vec3{
+        return glm::vec3(x, 0.05 * ((x - 10) * (x - 10) - (y - 10) * (y - 10)), y);
+    });
 
     m_a_pressed = false;
     m_w_pressed = false;
@@ -205,6 +215,11 @@ Application::Application()
     m_light_1_radius = 0.0f;
     m_light_1_angle = 0.0f;
     m_light_1_height = 60.0f;
+
+    m_light_1_on = 1;
+    m_light_2_on = 1;
+
+    m_current_material = 0;
 }
 
 Application::~Application()
@@ -301,7 +316,16 @@ void Application::KeyEvent(int keycode, int event){
         m_period_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
     }else if(keycode == ','){
         m_comma_pressed = (event == GLFW_PRESS || event == GLFW_REPEAT);
-    }else{
+    }else if(keycode == '1' && event == GLFW_PRESS){
+        m_light_1_on = !m_light_1_on;
+    }else if(keycode == '2' && event == GLFW_PRESS){
+        m_light_2_on = !m_light_2_on;
+    }else if(keycode == ']' && event == GLFW_PRESS){
+        m_current_material = (m_current_material + 1) % MATERIALS;
+    }else if(keycode == '[' && event == GLFW_PRESS){
+        m_current_material = (m_current_material - 1 + MATERIALS) % MATERIALS;
+    }
+    else{
         printf("Key event: %d\n", keycode);
     }
 }
@@ -452,25 +476,43 @@ void Application::Draw(float time, float deltatime)
         m_light_1_radius += lightSpeed * deltatime;
     }
 
+    if(m_light_1_radius < 0.0f){
+        m_light_1_radius = 0.0f;
+    }
+
     glm::vec3 light1pos = glm::vec3(m_light_1_radius * cosf(m_light_1_angle), m_light_1_height, m_light_1_radius * sinf(m_light_1_angle));
 
     //printf("Camera pos: %.3f, %.3f, %.3f\n", m_camera_pos.x, m_camera_pos.y, m_camera_pos.z);
     glUniform4f(m_uniform_camera_pos, m_camera_pos.x, m_camera_pos.y, m_camera_pos.z, 1.0);
 
-    glUniform4f(m_uniform_material_ambient, 0.6, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_material_diffuse, 0.9, 0.1, 0.1, 1.0);
-    glUniform4f(m_uniform_material_specular, 0.8, 0.8, 0.8, 1.0);
-    glUniform1f(m_uniform_material_shininess, 80.0);
+    Material m = m_materials[m_current_material];
+
+    glUniform4f(m_uniform_material_ambient, m.material_ambient[0], m.material_ambient[1], m.material_ambient[2], m.material_ambient[3]);
+    glUniform4f(m_uniform_material_diffuse, m.material_diffuse[0], m.material_diffuse[1], m.material_diffuse[2], m.material_diffuse[3]);
+    glUniform4f(m_uniform_material_specular, m.material_specular[0], m.material_specular[1], m.material_specular[2], m.material_specular[3]);
+    glUniform1f(m_uniform_material_shininess, m.shininess);
 
     glUniform4f(m_uniform_light_1_pos, light1pos.x, light1pos.y, light1pos.z, 1.0);
-    glUniform4f(m_uniform_light_1_ambient, 0.2, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_light_1_diffuse, 0.6, 0.6, 0.6, 1.0);
-    glUniform4f(m_uniform_light_1_specular, 1.0, 1.0, 1.0, 1.0);
+    if(m_light_1_on) {
+        glUniform4f(m_uniform_light_1_ambient, m.light_1_ambient[0], m.light_1_ambient[1], m.light_1_ambient[2], m.light_1_ambient[3]);
+        glUniform4f(m_uniform_light_1_diffuse, m.light_1_diffuse[0], m.light_1_diffuse[1], m.light_1_diffuse[2], m.light_1_diffuse[3]);
+        glUniform4f(m_uniform_light_1_specular, m.light_1_specular[0], m.light_1_specular[1], m.light_1_specular[2], m.light_1_specular[3]);
+    }else{
+        glUniform4f(m_uniform_light_1_ambient, 0.0, 0.0, 0.0, 1.0);
+        glUniform4f(m_uniform_light_1_diffuse, 0.0, 0.0, 0.0, 1.0);
+        glUniform4f(m_uniform_light_1_specular, 0.0, 0.0, 0.0, 1.0);
+    }
 
     glUniform4f(m_uniform_light_2_pos, m_camera_pos.x, m_camera_pos.y, m_camera_pos.z, 1.0);
-    glUniform4f(m_uniform_light_2_ambient, 0.2, 0.2, 0.2, 1.0);
-    glUniform4f(m_uniform_light_2_diffuse, 0.6, 0.6, 0.6, 1.0);
-    glUniform4f(m_uniform_light_2_specular, 1.0, 1.0, 1.0, 1.0);
+    if(m_light_2_on) {
+        glUniform4f(m_uniform_light_2_ambient, m.light_2_ambient[0], m.light_2_ambient[1], m.light_2_ambient[2], m.light_2_ambient[3]);
+        glUniform4f(m_uniform_light_2_diffuse, m.light_2_diffuse[0], m.light_2_diffuse[1], m.light_2_diffuse[2], m.light_2_diffuse[3]);
+        glUniform4f(m_uniform_light_2_specular, m.light_2_specular[0], m.light_2_specular[1], m.light_2_specular[2], m.light_2_specular[3]);
+    }else{
+        glUniform4f(m_uniform_light_2_ambient, 0.0, 0.0, 0.0, 1.0);
+        glUniform4f(m_uniform_light_2_diffuse, 0.0, 0.0, 0.0, 1.0);
+        glUniform4f(m_uniform_light_2_specular, 0.0, 0.0, 0.0, 1.0);
+    }
 
 
     //glm::mat4 transform = glm::rotate(glm::mat4(1.0), 0.0f, glm::vec3(0.0, 1.0, 0.0));
@@ -494,6 +536,10 @@ void Application::Draw(float time, float deltatime)
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
 
     DrawMesh(m_teddy);
+
+    transform = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 40.0, 0.0));
+    glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
+    DrawMesh(m_bezier);
 }
 
 void Application::DrawMesh(Object& object)
@@ -504,7 +550,10 @@ void Application::DrawMesh(Object& object)
     glVertexAttribPointer(m_attrib_pos, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(0));
 
     glEnableVertexAttribArray(m_attrib_normal);
-    glVertexAttribPointer(m_attrib_normal, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(sizeof(glm::vec3)));
+    glVertexAttribPointer(m_attrib_normal, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(offsetof(Vertex, normal)));
+
+    glEnableVertexAttribArray(m_attrib_uv);
+    glVertexAttribPointer(m_attrib_uv, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), ToVoidPointer(offsetof(Vertex, uv)));
 
     object.Draw();
 

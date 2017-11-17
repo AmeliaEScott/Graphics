@@ -25,6 +25,7 @@ void Object::Load(std::string path)
         {
             sscanf(str.c_str(), "v %f %f %f", &v.pos.x, &v.pos.y, &v.pos.z);
             v.normal = glm::vec3(0);
+            v.uv = glm::vec3(0);
             vertices.push_back(v);
         }
         else if (strncmp(str.c_str(), "f ", 2) == 0)

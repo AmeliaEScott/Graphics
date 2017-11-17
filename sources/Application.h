@@ -3,7 +3,24 @@
 #include <glm/vec4.hpp>
 #include <glm/detail/type_mat.hpp>
 #include "Object.h"
+#include "Bezier.h"
 
+#define MATERIALS 4
+
+typedef struct Material {
+    glm::vec4 material_ambient;
+    glm::vec4 material_diffuse;
+    glm::vec4 material_specular;
+    float shininess;
+
+    glm::vec4 light_1_ambient;
+    glm::vec4 light_1_diffuse;
+    glm::vec4 light_1_specular;
+
+    glm::vec4 light_2_ambient;
+    glm::vec4 light_2_diffuse;
+    glm::vec4 light_2_specular;
+} Material;
 
 class Application
 {
@@ -26,6 +43,7 @@ private:
     Object m_cow;
     Object m_teapot;
     Object m_teddy;
+    Bezier m_bezier;
 
     int m_w_pressed;
     int m_a_pressed;
@@ -43,6 +61,9 @@ private:
     int m_period_pressed;
     int m_comma_pressed;
 
+    int m_light_1_on;
+    int m_light_2_on;
+
     int m_orbit_mode;
 
     glm::vec3 m_prev_mouse_pos;
@@ -58,9 +79,63 @@ private:
     float m_camera_altitude;
     float m_camera_radius;
 
+    Material m_materials[MATERIALS] = {
+            {       // From the handout
+                    glm::vec4(0.6, 0.2, 0.2, 1.0),
+                    glm::vec4(0.9, 0.1, 0.1, 1.0),
+                    glm::vec4(0.8, 0.8, 0.8, 1.0),
+                    80.0f,
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+            },
+            {       // Blue, non-shiny material
+                    glm::vec4(0.01, 0.01, 0.7, 1.0),
+                    glm::vec4(0.05, 0.05, 0.95, 1.0),
+                    glm::vec4(0.05, 0.05, 0.1, 1.0),
+                    2.0f,
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+                    glm::vec4(0.1, 0.1, 0.1, 1.0),
+                    glm::vec4(0.4, 0.4, 0.4, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+            },
+            {       // Copper
+                    glm::vec4(0.55, 0.3, 0.1, 1.0),
+                    glm::vec4(0.55, 0.3, 0.1, 1.0),
+                    glm::vec4(0.55, 0.3, 0.1, 1.0),
+                    300.0f,
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+            },
+            {       // Crazy debug material
+                    glm::vec4(1.0, 0.0, 0.0, 1.0),
+                    glm::vec4(0.0, 1.0, 0.0, 1.0),
+                    glm::vec4(0.0, 0.0, 1.0, 1.0),
+                    50.0f,
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+                    glm::vec4(0.2, 0.2, 0.2, 1.0),
+                    glm::vec4(0.6, 0.6, 0.6, 1.0),
+                    glm::vec4(1.0, 1.0, 1.0, 1.0),
+            }
+    };
+
+    int m_current_material;
+
     unsigned int m_program;
     unsigned int m_attrib_pos;
     unsigned int m_attrib_normal;
+    unsigned int m_attrib_uv;
     unsigned int m_uniform_transform;
     unsigned int m_uniform_viewProjection;
 

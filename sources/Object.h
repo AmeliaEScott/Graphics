@@ -12,7 +12,7 @@ public:
     void Bind();
     void Draw();
     void UnBind();
-private:
+protected:
     unsigned int m_vertexBufferObject;
     unsigned int m_indexBufferObject;
     unsigned int m_indexSize;
@@ -22,6 +22,7 @@ struct Vertex
 {
     glm::vec3 pos;
     glm::vec3 normal;
+    glm::vec3 uv;
 };
 
 

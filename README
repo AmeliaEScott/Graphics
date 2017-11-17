@@ -1,0 +1,26 @@
+CS 470 - Introduction to Computer Graphics
+Final Project
+Timothy Scott
+
+1. Movement:
+    a. Orbit mode: Click and drag the mouse to change azimuth and altitude. Scroll
+       mouse wheel to move in and out from the center of the scene.
+    b. Free mode: Click and drag to change pitch and yaw. Use WASD to move forward, backward, and side to side.
+       Use E to move up, and Q to move down.
+    c. Switching: Use either shift key to switch between free mode and orbit mode.
+
+2. Light controls:
+    a. Toggling lights: Press 1 to toggle the stationary light on and off. Press 2 to toggle the light attached to the camera.
+    b. Moving the stationary light: Use the period key to increase the stationary light's radius from the center.
+       Use the comma key to decrease the radius.
+       Use the left and right arrow keys to rotate the light about the center.
+       Use the up and down arrow keys to move the light up and down.
+
+3. Switching materials:
+    Use the square bracket keys to cycle between materials.
+
+4. Materials:
+    1. The first material is the material specified in the assignment.
+    2. The blue material is to demonstrate a less reflective surface with little specular component.
+    3. The brown material is meant to resemble copper, because it has a bright specular component the same color as the material.
+    4. The multicolor material is simply for clearly demonstrating the separate components (ambient, diffuse, and specular)
