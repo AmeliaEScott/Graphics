@@ -4,6 +4,8 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include "imgui.h"
+#include "examples/opengl3_example/imgui_impl_glfw_gl3.h"
 
 
 Application* app;
@@ -31,6 +33,8 @@ int main()
 
     /* Make the window's context current */
     glfwMakeContextCurrent(window);
+
+    ImGui_ImplGlfwGL3_Init(window, false);
 
     {
         //std::shared_ptr<Application> app = std::make_shared<Application>();
@@ -60,11 +64,16 @@ int main()
         {
             auto current_timestamp = std::chrono::steady_clock::now();
 
+            ImGui_ImplGlfwGL3_NewFrame();
+
             std::chrono::duration<float> time = (current_timestamp - start);
             std::chrono::duration<float> delta_time = (current_timestamp - prev);
             prev = current_timestamp;
 
             app->Draw(time.count(), delta_time.count());
+            //ImGui::SetNextWindowPos(ImVec2(0.0, 0.0), ImGuiCond_FirstUseEver);
+            ImGui::ShowTestWindow();
+            ImGui::Render();
 
             /* Swap front and back buffers */
             glfwSwapBuffers(window);
@@ -75,6 +84,7 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(15));
 
         }
+        ImGui_ImplGlfwGL3_Shutdown();
     }
 
     glfwTerminate();

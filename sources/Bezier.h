@@ -1,19 +1,29 @@
 #ifndef OPENGLINTRO_BEZIER_H
 #define OPENGLINTRO_BEZIER_H
 
+#define TEXTURE_WIDTH 128
+#define TEXTURE_HEIGHT 128
+
 #include <string>
 #include <functional>
 #include <glm/vec3.hpp>
+#include <GL/gl3w.h>
 #include "Object.h"
 
 class Bezier : public Object
 {
 public:
-    void Load(int height, int width, std::function<glm::vec3 (int, int)> func);
-//private:
-//    unsigned int m_vertexBufferObject;
-//    unsigned int m_indexBufferObject;
-//    unsigned int m_indexSize;
+    void Load(float startu, float endu, int usteps, float startv, float endv, int vsteps, std::function<glm::vec3 (float, float)> func);
+
+    void Draw();
+    void Bind();
+    void UnBind();
+
+    GLuint textureHandle;
+private:
+
+
+    GLubyte texture[TEXTURE_HEIGHT][TEXTURE_WIDTH][3];
 };
 
 

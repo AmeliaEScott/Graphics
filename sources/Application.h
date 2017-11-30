@@ -140,6 +140,8 @@ private:
     unsigned int m_uniform_viewProjection;
 
     unsigned int m_uniform_camera_pos;
+    unsigned int m_uniform_texture;
+    unsigned int m_uniform_use_texture;
 
     unsigned int m_uniform_material_ambient;
     unsigned int m_uniform_material_diffuse;

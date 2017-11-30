@@ -7,6 +7,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <GLFW/glfw3.h>
 
+
 /*
  * CS 470: Computer Graphics
  * Assignment 3
@@ -100,6 +101,9 @@ Application::Application()
         uniform vec4 u_light_2_diffuse;
         uniform vec4 u_light_2_specular;
 
+        uniform sampler2D u_texture;
+        uniform int u_use_texture;
+
         varying vec4 v_normal;
         varying vec4 v_pos;
         varying vec3 v_uv;
@@ -112,10 +116,17 @@ Application::Application()
             vec3 R1 = (2.0 * dot(L1, v_normal.xyz) * v_normal.xyz) - L1;
             vec3 R2 = (2.0 * dot(L2, v_normal.xyz) * v_normal.xyz) - L2;
 
-            vec3 ambient = u_material_ambient.xyz * (u_light_1_ambient.xyz + u_light_2_ambient.xyz);
-            vec3 light1diffuse = u_material_diffuse.xyz * max(dot(L1, v_normal.xyz), 0.0) * u_light_1_diffuse.xyz;
+            vec3 ambient;
+            vec3 material_diffuse;
+            if(u_use_texture != 0){
+                material_diffuse = texture2D(u_texture, v_uv.xy).rgb;
+                //material_diffuse = vec3(1.0, 1.0, 1.0);
+            }else{
+                material_diffuse = u_material_diffuse.xyz;
+            }
+            vec3 light1diffuse = material_diffuse.xyz * max(dot(L1, v_normal.xyz), 0.0) * u_light_1_diffuse.xyz;
             vec3 light1specular = u_light_1_specular.xyz * u_material_specular.xyz * pow(max(dot(R1, V), 0.0), u_material_shininess);
-            vec3 light2diffuse = u_material_diffuse.xyz * max(dot(L2, v_normal.xyz), 0.0) * u_light_2_diffuse.xyz;
+            vec3 light2diffuse = material_diffuse.xyz * max(dot(L2, v_normal.xyz), 0.0) * u_light_2_diffuse.xyz;
             vec3 light2specular = u_light_2_specular.xyz * u_material_specular.xyz * pow(max(dot(R2, V), 0.0), u_material_shininess);
             gl_FragColor = vec4(ambient + light1diffuse + light1specular + light2diffuse + light2specular, 1.0);
             //gl_FragColor = v_normal;
@@ -177,12 +188,16 @@ Application::Application()
     m_uniform_light_2_specular = glGetUniformLocation(m_program, "u_light_2_specular");
 
     m_uniform_camera_pos = glGetUniformLocation(m_program, "u_camera_pos");
+    m_uniform_texture = glGetUniformLocation(m_program, "u_texture");
+    m_uniform_use_texture = glGetUniformLocation(m_program, "u_use_texture");
 
     m_cow.Load("../cow.obj");
     m_teapot.Load("../sphere.obj");
     m_teddy.Load("../teddy.obj");
-    m_bezier.Load(20, 20, [](int x, int y) -> glm::vec3{
-        return glm::vec3(x, 0.05 * ((x - 10) * (x - 10) - (y - 10) * (y - 10)), y);
+    m_bezier.Load(0.0f, (float) TEXTURE_WIDTH, 12, 0.0f, (float) TEXTURE_HEIGHT, 12, [](float u, float v) -> glm::vec3{
+        float x = (u - (TEXTURE_WIDTH / 2.0f)) / TEXTURE_WIDTH * 3.0f;
+        float y = (v - (TEXTURE_HEIGHT / 2.0f)) / TEXTURE_HEIGHT * 3.0f;
+        return glm::vec3(x, 0.1f * ((x * x) + (y * y)), y);
     });
 
     m_a_pressed = false;
@@ -355,6 +370,13 @@ void Application::Draw(float time, float deltatime)
     glUseProgram(m_program);
 
 
+//    ImGui::Begin("Test window!");
+//
+//    ImGui::Text("Some text!!");
+//
+//    ImGui::End();
+
+
 
     /* #################################
      * #### BEGIN ASSIGNMENT 3 CODE ####
@@ -519,6 +541,7 @@ void Application::Draw(float time, float deltatime)
     glm::mat4 transform = glm::mat4(1.0f);
     glm::mat4 cowscale = glm::scale(transform, glm::vec3(6.0, 6.0, 6.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &cowscale[0][0]);
+    glUniform1i(m_uniform_use_texture, 0);
 
     DrawMesh(m_cow);
 
@@ -537,8 +560,10 @@ void Application::Draw(float time, float deltatime)
 
     DrawMesh(m_teddy);
 
-    transform = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 40.0, 0.0));
+    transform = glm::translate(glm::scale(glm::mat4(1.0), glm::vec3(10.0, 10.0, 10.0)), glm::vec3(0.0, 4.0, 0.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
+    glUniform1i(m_uniform_texture, 0);
+    glUniform1i(m_uniform_use_texture, 1);
     DrawMesh(m_bezier);
 }
 

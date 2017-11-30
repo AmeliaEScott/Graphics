@@ -31,12 +31,20 @@ execute_process(COMMAND python gl3w_gen.py --root ${PROJECT_BINARY_DIR}/libs/gl3
 include_directories(libs/glfw/include)
 include_directories(libs/gl3w/include)
 include_directories(libs/glm)
+include_directories(libs/imgui)
 
 ##############################################################
 # Externals
 ##############################################################
 add_subdirectory (libs/glfw)
 add_subdirectory (libs/gl3w)
+
+#####################################################################
+# imgui
+#####################################################################
+set(IMGUI_DIR libs/imgui)
+file(GLOB IMGUI_SOURCES ${IMGUI_DIR}/*.cpp ${IMGUI_DIR}/*.h )
+add_library(imgui ${IMGUI_SOURCES} ${IMGUI_DIR}/extra_fonts/binary_to_compressed_c.cpp ${IMGUI_DIR}/examples/opengl3_example/imgui_impl_glfw_gl3.cpp)
 
 ##############################################################
 # Targets
@@ -47,4 +55,4 @@ add_executable(Lighting ${SOURCES} sources/Bezier.cpp sources/Bezier.h)
 ##############################################################
 # Linkage
 ##############################################################
-target_link_libraries(Lighting gl3w glfw ${OPENGL_LIBRARIES})
+target_link_libraries(Lighting gl3w glfw imgui ${OPENGL_LIBRARIES})
