@@ -194,10 +194,10 @@ Application::Application()
     m_cow.Load("../cow.obj");
     m_teapot.Load("../sphere.obj");
     m_teddy.Load("../teddy.obj");
-    m_bezier.Load(0.0f, (float) TEXTURE_WIDTH, 12, 0.0f, (float) TEXTURE_HEIGHT, 12, [](float u, float v) -> glm::vec3{
-        float x = (u - (TEXTURE_WIDTH / 2.0f)) / TEXTURE_WIDTH * 3.0f;
-        float y = (v - (TEXTURE_HEIGHT / 2.0f)) / TEXTURE_HEIGHT * 3.0f;
-        return glm::vec3(x, 0.1f * ((x * x) + (y * y)), y);
+    m_bezier.Load(0.0f, 1.0f, 120, 0.0f, 1.0f, 120, [](float u, float v) -> glm::vec3{
+        u -= 0.5f;
+        v -= 0.5f;
+        return glm::vec3(u, 0.5f * ((u * u) + (v * v)), v);
     });
 
     m_a_pressed = false;
@@ -340,9 +340,9 @@ void Application::KeyEvent(int keycode, int event){
     }else if(keycode == '[' && event == GLFW_PRESS){
         m_current_material = (m_current_material - 1 + MATERIALS) % MATERIALS;
     }
-    else{
-        printf("Key event: %d\n", keycode);
-    }
+//    else{
+//        printf("Key event: %d\n", keycode);
+//    }
 }
 
 void Application::MouseButtonEvent(int buttoncode, int event) {
@@ -560,7 +560,7 @@ void Application::Draw(float time, float deltatime)
 
     DrawMesh(m_teddy);
 
-    transform = glm::translate(glm::scale(glm::mat4(1.0), glm::vec3(10.0, 10.0, 10.0)), glm::vec3(0.0, 4.0, 0.0));
+    transform = glm::translate(glm::scale(glm::mat4(1.0), glm::vec3(30.0, 30.0, 30.0)), glm::vec3(0.0, 1.2, 0.0));
     glUniformMatrix4fv(m_uniform_transform, 1, GL_FALSE, &transform[0][0]);
     glUniform1i(m_uniform_texture, 0);
     glUniform1i(m_uniform_use_texture, 1);

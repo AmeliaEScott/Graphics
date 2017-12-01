@@ -1,8 +1,9 @@
 #ifndef OPENGLINTRO_BEZIER_H
 #define OPENGLINTRO_BEZIER_H
 
-#define TEXTURE_WIDTH 128
-#define TEXTURE_HEIGHT 128
+#define TEXTURE_WIDTH (1 << 13)
+#define TEXTURE_HEIGHT (1 << 13)
+#define SQUARE_SIZE (1 << 8)
 
 #include <string>
 #include <functional>

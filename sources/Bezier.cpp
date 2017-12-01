@@ -1,6 +1,8 @@
 #include "Bezier.h"
 #include <GL/gl3w.h>
 #include <glm/glm.hpp>
+#include <stdlib.h>
+#include <time.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 
@@ -11,8 +13,8 @@ void Bezier::Load(float startu, float endu, int usteps, float startv, float endv
 
     m_indexSize = (unsigned int) (6 * (usteps - 1) * (vsteps - 1));
 
-    float ustepsize = (endu - startu) / usteps;
-    float vstepsize = (endv - startv) / vsteps;
+    float ustepsize = (endu - startu) / (usteps - 1);
+    float vstepsize = (endv - startv) / (vsteps - 1);
 
     Vertex vertices[usteps * vsteps];
     int indexes[m_indexSize];
@@ -21,9 +23,11 @@ void Bezier::Load(float startu, float endu, int usteps, float startv, float endv
     for(int x = 0; x < usteps; x++){
         for(int y = 0; y < vsteps; y++){
             index = (x * usteps) + y;
-            vertices[index].pos = func((x * ustepsize) + startu, (y * vstepsize) + startv);
+            float u = (x * ustepsize) + startu;
+            float v = (y * vstepsize) + startv;
+            vertices[index].pos = func(u, v);
             vertices[index].normal = glm::vec3(0.0, 0.0, 0.0);
-            vertices[index].uv = glm::vec3(x, y, 1.0);
+            vertices[index].uv = glm::vec3(u, v, 1.0);
             if(y < vsteps - 1 && x < usteps - 1){
                 indexes[6 * i] = index;
                 indexes[6 * i + 1] = index + 1;
@@ -65,12 +69,47 @@ void Bezier::Load(float startu, float endu, int usteps, float startv, float endv
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_indexSize * sizeof(int), indexes, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
-    for(int u = 0; u < TEXTURE_HEIGHT; u++){
-        for(int v = 0; v < TEXTURE_WIDTH; v++){
-            int c = (((u & 0x40) == 0) ^ ((v & 0x40) == 0)) * 255;
-            texture[u][v][0] = (GLubyte) c;
-            texture[u][v][1] = (GLubyte) c;
-            texture[u][v][2] = (GLubyte) c;
+
+    // This code is just for generating the texture.
+    // I realize it's a mess. I'm sorry. At least it makes pretty polka dots.
+
+    srand(time(NULL));
+
+    int rb = 255;
+    int gb = 105;
+    int bb = 180;
+
+    for(int x = 0; x < TEXTURE_WIDTH / SQUARE_SIZE; x++){
+        for(int y = 0; y < TEXTURE_HEIGHT / SQUARE_SIZE; y++){
+            int r, g, b;
+            if((x + y) % 2 == 0){
+            //if(rand() % 5 == 0){
+                r = rand() % 255;
+                g = rand() % 255;
+                b = rand() % 255;
+            }else{
+                r = rb;
+                g = gb;
+                b = bb;
+            }
+            for(int u = 0; u < SQUARE_SIZE; u++){
+                for(int v = 0; v < SQUARE_SIZE; v++){
+                    int i, j, radius;
+                    radius = SQUARE_SIZE / 2;
+                    i = v - radius;
+                    j = u - radius;
+                    //printf("(x, y) = (%d, %d), (u, v) = (%d, %d), (i, j) = (%d, %d)\n", x, y, u, v, i, j);
+                    if(i * i + j * j < radius * radius) {
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][0] = (GLubyte) r;
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][1] = (GLubyte) g;
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][2] = (GLubyte) b;
+                    }else{
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][0] = (GLubyte) rb;
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][1] = (GLubyte) gb;
+                        texture[x * SQUARE_SIZE + u][y * SQUARE_SIZE + v][2] = (GLubyte) bb;
+                    }
+                }
+            }
         }
     }
 
